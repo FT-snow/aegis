@@ -16,6 +16,8 @@
     "ARE_HIGH_MAX": "79",
     "USDC_ADDRESS": "0x036CbD53842c5426634e7929541eC2318f3dCF7c",
     "ENTRY_POINT_ADDRESS": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+    "AEGIS_FACTORY_ADDRESS": "0xebC559b6A8564657F6bb36d9AB43e39D40611342",
+    "DASHBOARD_ORIGINS": "https://aegis.boiz-prakhar.workers.dev",
     "X402_PRICE": "$0.001"
   },
   "durable_objects": {
