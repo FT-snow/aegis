@@ -10,6 +10,7 @@
     "dev": "vite",
     "typecheck:functions": "tsc --noEmit -p tsconfig.functions.json",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "buil": "npm run build",
     "preview": "vite preview",
     "deploy": "npx --yes wrangler@4.55.0 deploy"
   },
