@@ -1,0 +1,33 @@
+{
+  "name": "aegis",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/worker"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace @aegis/kit && npm run test --workspace @aegis/sim-core && npm run test --workspace @aegis/worker",
+    "typecheck": "tsc -b",
+    "check": "npm run typecheck && npm test && npm run contracts:compile",
+    "dev": "wrangler dev --config apps/worker/wrangler.jsonc",
+    "dashboard:dev": "npm --prefix apps/dashboard run dev",
+    "dashboard:build": "npm --prefix apps/dashboard run build",
+    "worker:dry-run": "wrangler deploy --config apps/worker/wrangler.jsonc --dry-run",
+    "demo": "tsx apps/worker/scripts/demo.ts",
+    "contracts:compile": "node contracts/scripts/compile.mjs",
+    "contracts:test": "forge test --root contracts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260702.1",
+    "@types/node": "^20.19.0",
+    "solc": "0.8.38",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "wrangler": "4.55.0"
+  },
+  "dependencies": {
+    "@account-abstraction/contracts": "0.7.0",
+    "@openzeppelin/contracts": "5.6.1"
+  }
+}

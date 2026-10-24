@@ -1,0 +1,13 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = ["lib", "../node_modules"]
+solc_version = "0.8.38"
+optimizer = true
+optimizer_runs = 10000
+via_ir = true
+
+remappings = [
+  "@account-abstraction/contracts/=../node_modules/@account-abstraction/contracts/",
+]
