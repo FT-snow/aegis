@@ -3,11 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "typecheck:functions": "tsc --noEmit -p tsconfig.functions.json",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npx --yes wrangler@4.55.0 deploy"
   },
   "dependencies": {
     "@lucasmarkes/hairline": "^0.5.1",

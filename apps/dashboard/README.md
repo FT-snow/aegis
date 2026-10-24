@@ -1,6 +1,6 @@
 # AEGIS dashboard
 
-The React + TypeScript dashboard for AEGIS. Deploy this directory to Cloudflare Pages; do not use `packages/web` for the current dashboard.
+The React + TypeScript dashboard for AEGIS. Deploy this directory as the `aegis-dashboard` Cloudflare Worker; do not use `packages/web`.
 
 ## Local development
 
@@ -11,20 +11,20 @@ npm run dev
 
 Vite proxies `/api` to `http://localhost:8787` by default. Run the Worker separately with `npm run dev` from the repository root. To point the dashboard at a different local API, set `VITE_API_BASE_URL` to its origin before starting Vite.
 
-## Cloudflare Pages
+## Cloudflare Workers Builds
 
-Connect `FT-snow/aegis`, production branch `main`, and set:
+Connect `FT-snow/aegis`, production branch `main`, and set under **Workers & Pages → aegis-dashboard → Settings → Builds**:
 
 - Root directory: `apps/dashboard`
 - Build command: `npm ci && npm run typecheck:functions && npm run build`
-- Build output directory: `dist`
-- Node.js version: `22`
+- Deploy command: `npm run deploy`
+- Build environment variable: `NODE_VERSION=22` (Production and Preview)
 
-The `functions/api/[[path]].ts` Pages Function proxies `/api/*` to the Worker, keeping authentication cookies same-origin in the browser. Add `AEGIS_API_ORIGIN` as a **Pages Functions runtime variable** and set it to the Worker origin, for example `https://aegis-api.<your-account>.workers.dev` (no `/api` suffix). Leave `VITE_API_BASE_URL` unset for this deployment. `public/_redirects` provides SPA route fallback on refresh.
+`wrangler.jsonc` deploys `dist` as static assets, provides SPA route fallback, and routes `/api/*` through `src/worker.ts`. In **Workers & Pages → aegis-dashboard → Settings → Variables and Secrets → Runtime variables**, add `AEGIS_API_ORIGIN` with the API Worker origin only, e.g. `https://aegis-api.<your-account>.workers.dev` (no `/api`). Leave `VITE_API_BASE_URL` unset. API secrets and variables remain on the separate `aegis-api` Worker.
 
 Deploy the API Worker separately with `npm run worker:production:dry-run` followed by `npm run worker:deploy`. Create the `aegis-sim-archives` R2 bucket before deploying. Set the Worker variables and secrets in `deployment/cloudflare/`; never put Worker secrets in Pages build variables.
 
-For a direct browser-to-Worker API connection instead of the Pages proxy, set `VITE_API_BASE_URL` to the Worker origin and configure `DASHBOARD_ORIGINS` to the exact dashboard origin. Use Pages and Worker custom domains under the same parent domain for reliable session cookies; the default `pages.dev` and `workers.dev` domains are cross-site.
+The Pages-specific `functions/api/[[path]].ts` and `public/_redirects` are retained for compatibility; Wrangler deploys the Worker and assets configured in `wrangler.jsonc`.
 
 ## Environment templates
 

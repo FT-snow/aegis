@@ -1,8 +1,8 @@
 # Cloudflare deployment
 
-The current dashboard and API are separate Cloudflare deployments. The Pages site serves the UI and proxies `/api/*` to the Worker so browser authentication stays same-origin.
+The dashboard and API are separate Cloudflare Workers. The dashboard serves static assets from `apps/dashboard/dist` and proxies `/api/*` to the API Worker so browser authentication stays same-origin.
 
-## Dashboard on Cloudflare Pages
+## Dashboard Worker
 
 Connect `FT-snow/aegis` and use:
 
@@ -11,10 +11,12 @@ Connect `FT-snow/aegis` and use:
 | Production branch | `main` |
 | Root directory | `apps/dashboard` |
 | Build command | `npm ci && npm run typecheck:functions && npm run build` |
-| Build output directory | `dist` |
-| Node.js version | `22` |
+| Deploy command | `npm run deploy` |
+| Build environment variable | `NODE_VERSION=22` in Production and Preview |
 
-In the Pages project's Functions runtime variables, add `AEGIS_API_ORIGIN` with the API Worker origin only, for example `https://aegis-api.<your-account>.workers.dev`. Do not append `/api`. Do not set `VITE_API_BASE_URL` when using the Pages proxy. Pages includes the `/api/*` function and the SPA fallback from `public/_redirects`.
+`apps/dashboard/wrangler.jsonc` sets Wrangler's static assets directory to `./dist`, the SPA fallback, and Worker-first routing for `/api/*`. Set `AEGIS_API_ORIGIN` under **Workers & Pages → aegis-dashboard → Settings → Variables and Secrets → Runtime variables** to the API Worker origin only (e.g. `https://aegis-api.<your-account>.workers.dev`, no `/api`). Leave `VITE_API_BASE_URL` unset. The API Worker's secrets and other variables stay on `aegis-api`.
+
+Cloudflare must use root directory `apps/dashboard` so `npm ci` reads the dashboard's standalone lockfile. `apps/dashboard/.nvmrc` and the package engine specify Node 22; set build variable `NODE_VERSION=22` under **Settings → Builds → Environment variables** for Production and Preview.
 
 ## API Worker
 
