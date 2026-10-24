@@ -8,5 +8,5 @@
     }
   },
   "include": ["packages/**/*.ts", "apps/worker/**/*.ts"],
-  "exclude": ["apps/dashboard"]
+  "exclude": ["apps/dashboard", "packages/web"]
 }

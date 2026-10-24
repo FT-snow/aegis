@@ -200,6 +200,15 @@ function requestIp(request: Request): string {
   return request.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
+/**
+ * Local environments share one IP ("unknown"), so demo traffic exhausts
+ * per-IP counters immediately. 10x the limits when APP_ENV=local;
+ * testnet/production limits stay unchanged.
+ */
+function rateLimitFor(env: Env, limit: number): number {
+  return env.APP_ENV === "local" ? limit * 10 : limit;
+}
+
 function getChainIdAllowlist(env: Env): number[] {
   const permitted = env.APP_ENV === "local" ? new Set([84532, 31337]) : new Set([84532]);
   return (env.ALLOWED_CHAIN_IDS ?? "84532")
@@ -657,8 +666,8 @@ app.post("/api/auth/register", async (c) => {
     const ip = requestIp(c.req.raw);
     const email = body.data.email.trim().toLowerCase();
     const [ipAllowed, emailAllowed] = await Promise.all([
-      consumeRateLimit(c.env, `auth-register-ip:${ip}`, 12, 3_600),
-      consumeRateLimit(c.env, `auth-register-email:${email}`, 3, 3_600),
+      consumeRateLimit(c.env, `auth-register-ip:${ip}`, rateLimitFor(c.env, 12), 3_600),
+      consumeRateLimit(c.env, `auth-register-email:${email}`, rateLimitFor(c.env, 3), 3_600),
     ]);
     if (!ipAllowed || !emailAllowed) return c.json({ error: "RATE_LIMITED" }, 429);
     const user = await registerUser(c.env, email, body.data.password);
@@ -675,8 +684,8 @@ app.post("/api/auth/login", async (c) => {
     const ip = requestIp(c.req.raw);
     const email = body.data.email.trim().toLowerCase();
     const [ipAllowed, emailAllowed] = await Promise.all([
-      consumeRateLimit(c.env, `auth-login-ip:${ip}`, 20, 900),
-      consumeRateLimit(c.env, `auth-login-email:${email}`, 8, 900),
+      consumeRateLimit(c.env, `auth-login-ip:${ip}`, rateLimitFor(c.env, 20), 900),
+      consumeRateLimit(c.env, `auth-login-email:${email}`, rateLimitFor(c.env, 8), 900),
     ]);
     if (!ipAllowed || !emailAllowed) return c.json({ error: "RATE_LIMITED" }, 429);
     const result = await loginUser(c.env, email, body.data.password);
@@ -1215,7 +1224,7 @@ app.post("/api/gateway/userop", async (c) => {
   try {
     const session = await requireSession(c.env, c.req.raw, true);
     const ip = requestIp(c.req.raw);
-    if (!await consumeRateLimit(c.env, `owner-userop:${session.user.id}:${ip}`, 30, 60)) {
+    if (!await consumeRateLimit(c.env, `owner-userop:${session.user.id}:${ip}`, rateLimitFor(c.env, 30), 60)) {
       return c.json({ error: "RATE_LIMITED" }, 429);
     }
     const { walletId, chainId, userOperation } = body.data;
@@ -1338,7 +1347,7 @@ app.post("/api/gateway/intent/submit", async (c) => {
   if (!body.success) return c.json({ error: "INVALID_AGENT_USER_OPERATION", issues: body.error.issues }, 400);
   try {
     const agent = await requireAgent(c.env, c.req.raw);
-    if (!await consumeRateLimit(c.env, `agent-userop:${agent.id}`, 20, 60)) return c.json({ error: "RATE_LIMITED" }, 429);
+    if (!await consumeRateLimit(c.env, `agent-userop:${agent.id}`, rateLimitFor(c.env, 20), 60)) return c.json({ error: "RATE_LIMITED" }, 429);
     if (!getChainIdAllowlist(c.env).includes(agent.chainId)) return c.json({ error: "CHAIN_NOT_ALLOWED" }, 400);
     if (!c.env.RPC_URL || !c.env.BUNDLER_URL) return c.json({ error: "RPC_OR_BUNDLER_NOT_CONFIGURED" }, 503);
 
@@ -1878,7 +1887,7 @@ app.post("/api/sim/runs", async (c) => {
   if (parsed.data.attackTicks.some((tick) => tick >= parsed.data.days)) {
     return c.json({ error: "ATTACK_TICK_OUT_OF_RANGE" }, 400);
   }
-  if (!await consumeRateLimit(c.env, `sim-run:${requestIp(c.req.raw)}`, 10, 60)) return c.json({ error: "RATE_LIMITED" }, 429);
+  if (!await consumeRateLimit(c.env, `sim-run:${requestIp(c.req.raw)}`, rateLimitFor(c.env, 10), 60)) return c.json({ error: "RATE_LIMITED" }, 429);
   const config = {
     ...parsed.data,
     startTimestamp: Math.floor(Date.now() / 86_400) * 86_400,
@@ -2001,7 +2010,7 @@ app.post("/api/gateway/intent", async (c) => {
   if (BigInt(body.data.amount) === 0n) return c.json({ error: "INVALID_AGENT_INTENT" }, 400);
   try {
     const agent = await requireAgent(c.env, c.req.raw);
-    if (!await consumeRateLimit(c.env, `gateway-agent:${agent.id}`, 30, 60)) return c.json({ error: "RATE_LIMITED" }, 429);
+    if (!await consumeRateLimit(c.env, `gateway-agent:${agent.id}`, rateLimitFor(c.env, 30), 60)) return c.json({ error: "RATE_LIMITED" }, 429);
     const replayDb = getDatabase(c.env);
     try {
       const replay = await replayDb.execute({
