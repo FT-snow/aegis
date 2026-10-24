@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@aegis/kit": ["packages/kit/src/index.ts"],
+      "@aegis/sim-core": ["packages/sim-core/src/index.ts"]
+    }
+  },
+  "include": ["packages/**/*.ts", "apps/worker/**/*.ts"],
+  "exclude": ["apps/dashboard", "packages/web"]
+}
