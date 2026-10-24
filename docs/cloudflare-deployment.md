@@ -14,7 +14,7 @@ Connect `FT-snow/aegis` and use:
 | Deploy command | `npm run deploy` |
 | Build environment variable | `NODE_VERSION=22` in Production and Preview |
 
-`apps/dashboard/wrangler.jsonc` sets Wrangler's static assets directory to `./dist`, the SPA fallback, and Worker-first routing for `/api/*`. Set `AEGIS_API_ORIGIN` under **Workers & Pages → aegis-dashboard → Settings → Variables and Secrets → Runtime variables** to the API Worker origin only (e.g. `https://aegis-api.<your-account>.workers.dev`, no `/api`). Leave `VITE_API_BASE_URL` unset. The API Worker's secrets and other variables stay on `aegis-api`.
+`apps/dashboard/wrangler.jsonc` sets Wrangler's static assets directory to `./dist`, the SPA fallback, and Worker-first routing for `/api/*`. Set `AEGIS_API_ORIGIN` under **Workers & Pages → aegis → Settings → Variables and Secrets → Runtime variables** to the API Worker origin only (e.g. `https://aegis-api.<your-account>.workers.dev`, no `/api`). Leave `VITE_API_BASE_URL` unset. The API Worker's secrets and other variables stay on `aegis-api`.
 
 Cloudflare must use root directory `apps/dashboard` so `npm ci` reads the dashboard's standalone lockfile. `apps/dashboard/.nvmrc` and the package engine specify Node 22; set build variable `NODE_VERSION=22` under **Settings → Builds → Environment variables** for Production and Preview.
 
