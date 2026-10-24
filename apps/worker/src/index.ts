@@ -1770,6 +1770,31 @@ app.get("/api/policy", async (c) => {
   }
 });
 
+app.get("/api/transactions", async (c) => {
+  const walletId = c.req.query("walletId");
+  if (walletId && !z.string().uuid().safeParse(walletId).success) return c.json({ error: "WALLET_ID_INVALID" }, 400);
+  try {
+    const session = await requireSession(c.env, c.req.raw, false);
+    const db = getDatabase(c.env);
+    try {
+      const result = await db.execute({
+        sql: `SELECT t.id, t.wallet_id, t.agent_id, t.chain_id, t.tx_hash, t.userop_hash, t.token,
+                     t.recipient, t.amount, t.decimals, t.status, t.source, t.passport_hash, t.created_at
+              FROM transactions t
+              WHERE t.wallet_id IN (SELECT id FROM wallets WHERE user_id = ?1)
+                AND (?2 = '' OR t.wallet_id = ?2)
+              ORDER BY t.created_at DESC LIMIT 200`,
+        args: [session.user.id, walletId ?? ""],
+      });
+      return c.json({ transactions: result.rows });
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    return authErrorResponse(error, c);
+  }
+});
+
 app.get("/api/lab/evil-page", (c) => {
   if (!canUseLab(c.env)) return c.json({ error: "LAB_DISABLED" }, 404);
   return c.text(
