@@ -20,7 +20,7 @@ Connect `FT-snow/aegis`, production branch `main`, and set under **Workers & Pag
 - Deploy command: `npm run deploy`
 - Build environment variable: `NODE_VERSION=22` (Production and Preview)
 
-`wrangler.jsonc` deploys `dist` as static assets, provides SPA route fallback, and routes `/api/*` through `src/worker.ts`. In **Workers & Pages → aegis → Settings → Variables and Secrets → Runtime variables**, add `AEGIS_API_ORIGIN` with the API Worker origin only, e.g. `https://aegis-api.<your-account>.workers.dev` (no `/api`). Leave `VITE_API_BASE_URL` unset. API secrets and variables remain on the separate `aegis-api` Worker.
+`wrangler.jsonc` deploys `dist` as static assets, provides SPA route fallback, and routes `/api/*` through a service binding to the `aegis-api` Worker. No dashboard API-origin variable is needed. Leave `VITE_API_BASE_URL` unset. API secrets and variables remain on the separate `aegis-api` Worker; set its `DASHBOARD_ORIGINS` to the dashboard Worker's exact public origin.
 
 Deploy the API Worker separately with `npm run worker:production:dry-run` followed by `npm run worker:deploy`. Create the `aegis-sim-archives` R2 bucket before deploying. Set the Worker variables and secrets in `deployment/cloudflare/`; never put Worker secrets in Pages build variables.
 

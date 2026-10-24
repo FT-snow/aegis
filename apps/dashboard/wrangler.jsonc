@@ -3,6 +3,9 @@
   "main": "./src/worker.ts",
   "compatibility_date": "2026-10-24",
   "keep_vars": true,
+  "services": [
+    { "binding": "AEGIS_API", "service": "aegis-api" }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
