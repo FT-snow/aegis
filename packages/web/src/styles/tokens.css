@@ -1,0 +1,82 @@
+:root {
+  color-scheme: light;
+  --ink: #16212c;
+  --muted: #5a6773;
+  --paper: #fafbfb;
+  --paper-raised: #ffffff;
+  --rule: #d5dbe0;
+  --decision-allowed: #0e7c66;
+  --decision-blocked: #c8321f;
+  --decision-pending: #2a5bb0;
+  --accent-yellow: #f5b800;
+  --focus: #16212c;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2rem;
+  --space-6: 3rem;
+  --space-7: 4.5rem;
+  --measure-column: 8rem;
+  --measure-field: 9rem;
+  --measure-approval: 12rem;
+  --measure-wide-field: 36rem;
+  --measure-modal-wide: 35rem;
+  --min-viewport-width: 22.5rem;
+  --viewport-height: 100vh;
+  --measure-display: 56rem;
+  --measure-heading: 22rem;
+  --measure-intro: 38rem;
+  --measure-copy: 44rem;
+  --measure-detail-label: 8rem;
+  --dialog-max-height: 90vh;
+  --tracking-brand: -0.06em;
+  --tracking-eyebrow: 0.08em;
+  --tracking-hero: -0.065em;
+  --tracking-heading: -0.04em;
+  --tracking-app-title: -0.05em;
+  --line-height-tight: 0.98;
+  --fade-duration: 400ms;
+  --reduced-duration: 0.01ms;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 3rem;
+  --text-display: clamp(3rem, 8vw, 6rem);
+  --font-body: "Hanken Grotesk Variable", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --weight-regular: 400;
+  --weight-medium: 550;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+  --hairline: 1px;
+  --focus-width: 2px;
+  --content-width: 68.75rem;
+  --auth-width: 25rem;
+  --sidebar-width: 14rem;
+  --topbar-height: 4.5rem;
+  --button-height: 2.75rem;
+  --chart-height: 18rem;
+  --dialog-width: 35rem;
+  --radius-none: 0;
+  --radius-small: 0.125rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ink: #e8edf1;
+    --muted: #a2adb6;
+    --paper: #11171d;
+    --paper-raised: #182129;
+    --rule: #303b45;
+    --decision-allowed: #65c7ad;
+    --decision-blocked: #f07868;
+    --decision-pending: #83a9f2;
+    --accent-yellow: #f5b800;
+    --focus: #e8edf1;
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "$schema": "https://oxc.rs/formatter/configuration.html",
+  "sortImports": true
+}

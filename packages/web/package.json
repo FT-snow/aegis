@@ -1,0 +1,28 @@
+{
+  "name": "@aegis/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint src vite.config.ts",
+    "format": "oxfmt --write ."
+  },
+  "dependencies": {
+    "@fontsource-variable/hanken-grotesk": "^5.2.6",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2",
+    "recharts": "^2.15.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.0",
+    "oxfmt": "^0.27.0",
+    "oxlint": "^1.0.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5"
+  }
+}
