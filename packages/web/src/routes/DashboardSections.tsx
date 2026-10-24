@@ -13,6 +13,7 @@ import {
   PolicyPanel,
   StatusMark,
 } from "../components";
+import { useToast } from "../components/ToastProvider";
 import { decide, isMockMode } from "../lib/api";
 import "../styles/dashboard.css";
 import type {
@@ -86,11 +87,11 @@ export function DashboardSections({
   ownerChainId,
 }: DashboardSectionsProps) {
   const navigate = useNavigate();
+  const toast = useToast();
   const mock = isMockMode;
   const [preview, setPreview] = useState<Preview>(null);
   const [logQuery, setLogQuery] = useState("");
   const [logDecision, setLogDecision] = useState("all");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState(wallet.keyStatus === "paused");
   useEffect(() => {
@@ -148,16 +149,15 @@ export function DashboardSections({
   async function updatePaused(nextPaused: boolean) {
     if (!mock || busy) return;
     setBusy(true);
-    setNotice("");
     try {
       await onPausedChange(nextPaused);
       setPaused(nextPaused);
-      setNotice(
+      toast.info(
         `Demo-only: session key ${nextPaused ? "paused" : "resumed"}. No on-chain transaction was sent.`,
       );
       onRefresh();
     } catch (error) {
-      setNotice(
+      toast.error(
         error instanceof Error ? error.message : "Could not update the demo session state.",
       );
     } finally {
@@ -168,14 +168,13 @@ export function DashboardSections({
   async function revokeKey() {
     if (!mock || busy) return;
     setBusy(true);
-    setNotice("");
     try {
       await onRevoked();
       setConfirmRevoke(false);
-      setNotice("Demo-only: session key marked revoked. No on-chain transaction was sent.");
+      toast.success("Demo-only: session key marked revoked. No on-chain transaction was sent.");
       onRefresh();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not revoke the demo session key.");
+      toast.error(error instanceof Error ? error.message : "Could not revoke the demo session key.");
     } finally {
       setBusy(false);
     }
@@ -184,21 +183,20 @@ export function DashboardSections({
   async function reviewRequest(id: string, action: "approve_once" | "approve_and_allow" | "deny") {
     if (busy) return;
     if (!mock) {
-      setNotice(
+      toast.error(
         "Unavailable: owner browser-wallet signing is not connected. No approval was submitted.",
       );
       return;
     }
     setBusy(true);
-    setNotice("");
     try {
       await decide(id, action);
-      setNotice(
+      toast.success(
         `Demo-only: request ${action === "deny" ? "denied" : "approved"}. No chain transaction was sent.`,
       );
       onRefresh();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not update this demo request.");
+      toast.error(error instanceof Error ? error.message : "Could not update this demo request.");
       onRefresh();
     } finally {
       setBusy(false);
@@ -213,6 +211,7 @@ export function DashboardSections({
         JSON.stringify(filteredEvents, null, 2),
         "application/json",
       );
+      toast.info(`Exported ${filteredEvents.length} filtered events as JSON.`);
       return;
     }
     const columns: Array<keyof AegisEvent> = [
@@ -233,6 +232,7 @@ export function DashboardSections({
       ...filteredEvents.map((event) => columns.map((column) => csvCell(event[column])).join(",")),
     ];
     downloadFile(`aegis-events-${stamp}.csv`, rows.join("\r\n"), "text/csv;charset=utf-8");
+    toast.info(`Exported ${filteredEvents.length} filtered events as CSV.`);
   }
 
   const heading = (eyebrow: string, title: string, description?: string) => (
@@ -245,8 +245,10 @@ export function DashboardSections({
   const panel = (children: ReactNode, className = "") => (
     <Card className={`ds-panel ${className}`}>{children}</Card>
   );
-  const pill = (label: string, tone = "neutral") => (
-    <Badge className={`ds-pill ds-pill-${tone}`}>{label}</Badge>
+  const pill = (label: string, tone = "neutral", title?: string) => (
+    <Badge className={`ds-pill ds-pill-${tone}`} title={title}>
+      {label}
+    </Badge>
   );
   const actionButton = (
     label: string,
@@ -263,34 +265,18 @@ export function DashboardSections({
       {label}
     </Button>
   );
-  const modeNotice = (
-    <div className={`ds-mode-banner ${mock ? "is-demo" : "is-live"}`} role="status">
-      <span className="ds-mode-mark" aria-hidden="true">
-        {mock ? "D" : "!"}
-      </span>
-      <div>
-        <strong>{mock ? "Demo mode" : "Signing is not connected"}</strong>
-        <p>
-          {mock
-            ? "Actions on this screen change mock data only. No funds move and no transaction is sent."
-            : "Wallet actions are unavailable until browser-wallet signing is connected. Nothing here can submit an on-chain transaction."}
-        </p>
-      </div>
-    </div>
-  );
-
   function renderWalletCard() {
     return panel(
       <>
         <div className="ds-panel-topline">
           <div>
-            <p className="ds-eyebrow">POLICY WALLET</p>
+            <p className="ds-eyebrow">Policy wallet</p>
             <h3>{wallet.name}</h3>
           </div>
           <StatusMark status={wallet.keyStatus} />
         </div>
         <p className="ds-eyebrow">
-          {mock ? "SAMPLE SMART-ACCOUNT ADDRESS" : "SMART-ACCOUNT ADDRESS"}
+          {mock ? "Sample smart-account address" : "Smart-account address"}
         </p>
         <p className="ds-address" title={wallet.address}>
           {wallet.address}
@@ -352,32 +338,31 @@ export function DashboardSections({
     return (
       <>
         <section className="ds-metrics" aria-label="Wallet and policy summary">
-          <Card className="ds-metric ds-metric-dark">
+          <div className="ds-metric">
             <span>{mock ? "Sample USDC balance" : "Reported USDC balance"}</span>
             <strong>{currency(wallet.usdcBalance)}</strong>
             <small>
-              {mock ? "Mock data · not verified on-chain" : "Reported by the configured API"}
+              {mock
+                ? "Mock value · not verified on-chain"
+                : "Reported by the configured API · not independently verified on-chain"}
             </small>
-          </Card>
-          <Card className="ds-metric">
+          </div>
+          <div className="ds-metric">
             <span>Daily budget remaining</span>
             <strong>{currency(String(remainingToday))}</strong>
             <small>
               {currency(policy.usedToday)} used of {currency(policy.dailyLimit)}
             </small>
-          </Card>
-          <Card className="ds-metric">
+          </div>
+          <div className="ds-metric">
             <span>Awaiting review</span>
             <strong>{String(pending.length).padStart(2, "0")}</strong>
-            <small>Owner approval requests</small>
-          </Card>
-          <Card className="ds-metric">
-            <span>Connected agents</span>
-            <strong>
-              {String(agents.filter((agent) => agent.status !== "revoked").length).padStart(2, "0")}
-            </strong>
-            <small>Across this policy wallet</small>
-          </Card>
+            <small>
+              Owner approval requests ·{" "}
+              {String(agents.filter((agent) => agent.status !== "revoked").length).padStart(2, "0")}{" "}
+              active agents
+            </small>
+          </div>
         </section>
         <nav aria-label="Quick actions" className="ds-quick-actions">
           {actionButton("Create wallet preview", () => setPreview("wallet"))}
@@ -392,7 +377,7 @@ export function DashboardSections({
               <>
                 <div className="ds-panel-topline">
                   <div>
-                    <p className="ds-eyebrow">RECENT ACTIVITY</p>
+                    <p className="ds-eyebrow">Recent activity</p>
                     <h3>Policy decisions</h3>
                   </div>
                   {pill(`${events.length} events`)}
@@ -434,7 +419,7 @@ export function DashboardSections({
               <>
                 <div className="ds-panel-topline">
                   <div>
-                    <p className="ds-eyebrow">POLICY HEALTH</p>
+                    <p className="ds-eyebrow">Policy health</p>
                     <h3>Spending boundary</h3>
                   </div>
                   <StatusMark status={wallet.keyStatus} />
@@ -447,7 +432,7 @@ export function DashboardSections({
               <>
                 <div className="ds-panel-topline">
                   <div>
-                    <p className="ds-eyebrow">OWNER QUEUE</p>
+                    <p className="ds-eyebrow">Owner queue</p>
                     <h3>Needs your review</h3>
                   </div>
                   {pill(`${pending.length} pending`, pending.length ? "wait" : "good")}
@@ -487,7 +472,7 @@ export function DashboardSections({
       <>
         <div className="ds-section-intro">
           {heading(
-            "01 / CUSTODY",
+            "01 / Custody",
             "Wallets",
             mock
               ? "Sample balances and key state only. No wallet activity is verified on-chain."
@@ -511,7 +496,7 @@ export function DashboardSections({
               {renderWalletCard()}
               {panel(
                 <>
-                  <p className="ds-eyebrow">TRANSFER TOOL</p>
+                  <p className="ds-eyebrow">Transfer tool</p>
                   <h3>Move assets</h3>
                   <p className="ds-muted">
                     Build a local preview of transfer details. This page has no wallet SDK or
@@ -527,7 +512,7 @@ export function DashboardSections({
             </div>
             {panel(
               <>
-                <p className="ds-eyebrow">FUNDING INSTRUCTIONS</p>
+                <p className="ds-eyebrow">Funding instructions</p>
                 <h3>Use Base Sepolia test assets only</h3>
                 <p className="ds-muted">
                   The sample account is counterfactual and not deployed. Do not fund it. For a
@@ -572,7 +557,7 @@ export function DashboardSections({
           <>
             <div className="ds-panel-topline">
               <div>
-                <p className="ds-eyebrow">WALLET CONTROL</p>
+                <p className="ds-eyebrow">Wallet control</p>
                 <h3>Session key</h3>
               </div>
               {pill(wallet.keyStatus, statusTone(wallet.keyStatus))}
@@ -610,7 +595,7 @@ export function DashboardSections({
       return (
         <>
           <div className="ds-section-intro">
-            {heading("02 / AGENT DETAIL", agent.name, agent.purpose)}
+            {heading("02 / Agent detail", agent.name, agent.purpose)}
             {actionButton("Back to agents", () => setSelectedAgentId(""))}
           </div>
           <div
@@ -741,7 +726,7 @@ export function DashboardSections({
       <>
         <div className="ds-section-intro">
           {heading(
-            "02 / ROSTER",
+            "02 / Roster",
             "Agents",
             "Review each agent identity and its assigned spending boundary.",
           )}
@@ -767,7 +752,7 @@ export function DashboardSections({
               <h3>{agent.name}</h3>
               <p className="ds-agent-purpose">{agent.purpose}</p>
               <div className="ds-agent-model">
-                <span>MODEL</span>
+                <span>Model</span>
                 <strong>{agent.model}</strong>
               </div>
               <div className="ds-policy-line">
@@ -807,7 +792,7 @@ export function DashboardSections({
     return (
       <>
         {heading(
-          "03 / EXECUTION RECORD",
+          "03 / Execution record",
           "Transactions",
           "Policy checks and transaction references reported to Aegis. An “executed” event is not independently verified on-chain here.",
         )}
@@ -815,7 +800,7 @@ export function DashboardSections({
           <>
             <div className="ds-panel-topline">
               <div>
-                <p className="ds-eyebrow">EVENT STREAM</p>
+                <p className="ds-eyebrow">Event stream</p>
                 <h3>All activity</h3>
               </div>
               {pill(`${events.length} records`)}
@@ -835,7 +820,7 @@ export function DashboardSections({
     return (
       <>
         {heading(
-          "04 / OWNER IN THE LOOP",
+          "04 / Owner in the loop",
           "Approvals",
           mock
             ? "Exceptions are surfaced for review. Review actions below are mock-only."
@@ -872,7 +857,7 @@ export function DashboardSections({
     return (
       <>
         {heading(
-          "05 / CONTROL PLANE",
+          "05 / Control plane",
           "Security",
           "Inspect the policy boundary and manage the agent session key.",
         )}
@@ -881,7 +866,7 @@ export function DashboardSections({
             <>
               <div className="ds-panel-topline">
                 <div>
-                  <p className="ds-eyebrow">SESSION AUTHORITY</p>
+                  <p className="ds-eyebrow">Session authority</p>
                   <h3>Agent access</h3>
                 </div>
                 {pill(wallet.keyStatus, statusTone(wallet.keyStatus))}
@@ -923,7 +908,7 @@ export function DashboardSections({
           )}
           {panel(
             <>
-              <p className="ds-eyebrow">POLICY LIMITS</p>
+              <p className="ds-eyebrow">Policy limits</p>
               <h3>Enforced envelope</h3>
               <div className="ds-policy-line">
                 <span>Per transaction</span>
@@ -971,7 +956,7 @@ export function DashboardSections({
           )}
           {panel(
             <>
-              <p className="ds-eyebrow">EXPLAINABLE RULE TRACE</p>
+              <p className="ds-eyebrow">Explainable rule trace</p>
               <h3>Recent policy decisions</h3>
               {events
                 .filter((event) => event.rule)
@@ -1000,26 +985,26 @@ export function DashboardSections({
     return (
       <>
         {heading(
-          "06 / CONFIGURATION",
+          "06 / Configuration",
           "Settings",
           "Application-level status and policy configuration. Editing and chain submission are not available in this build.",
         )}
         <div className="ds-settings-grid">
           {panel(
             <>
-              <p className="ds-eyebrow">ENVIRONMENT</p>
+              <p className="ds-eyebrow">Environment</p>
               <h3>{mock ? "Local mock data" : "Connected API"}</h3>
               <p className="ds-muted">
                 {mock
                   ? "The dashboard is backed by in-memory sample state. Changes reset when the page or mock service restarts."
                   : "This dashboard can read from the configured API. Wallet-signing controls remain unavailable."}
               </p>
-              {pill(mock ? "DEMO" : "API", mock ? "wait" : "good")}
+              {pill(mock ? "Demo" : "API", mock ? "wait" : "good")}
             </>,
           )}
           {panel(
             <>
-              <p className="ds-eyebrow">WALLET PROFILE</p>
+              <p className="ds-eyebrow">Wallet profile</p>
               <h3>{wallet.name}</h3>
               <div className="ds-setting-row">
                 <span>Address</span>
@@ -1037,7 +1022,7 @@ export function DashboardSections({
           )}
           {panel(
             <>
-              <p className="ds-eyebrow">POLICY PROFILE</p>
+              <p className="ds-eyebrow">Policy profile</p>
               <h3>Current limits</h3>
               <div className="ds-setting-row">
                 <span>Per-transaction cap</span>
@@ -1059,7 +1044,7 @@ export function DashboardSections({
           )}
           {panel(
             <>
-              <p className="ds-eyebrow">DATA</p>
+              <p className="ds-eyebrow">Data</p>
               <h3>Refresh dashboard</h3>
               <p className="ds-muted">
                 Reload wallet, policy, requests, agents, activity, and audit state from the
@@ -1077,7 +1062,7 @@ export function DashboardSections({
     return (
       <>
         {heading(
-          "07 / ACCOUNTABILITY",
+          "07 / Accountability",
           "Audit trail",
           "Owner decisions and their recorded outcomes.",
         )}
@@ -1085,7 +1070,7 @@ export function DashboardSections({
           <>
             <div className="ds-panel-topline">
               <div>
-                <p className="ds-eyebrow">DECISION RECORD</p>
+                <p className="ds-eyebrow">Decision record</p>
                 <h3>Review history</h3>
               </div>
               {pill(`${audit.length} entries`)}
@@ -1133,7 +1118,7 @@ export function DashboardSections({
     return (
       <>
         {heading(
-          "08 / OBSERVABILITY",
+          "08 / Observability",
           "Event logs",
           "Search every available event field, narrow by decision, then export the current filtered result set.",
         )}
@@ -1250,7 +1235,7 @@ export function DashboardSections({
 
   function submitWizard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setNotice(
+    toast.info(
       "Preview only: no wallet or agent was created. The required SDK/API is not available.",
     );
     setPreview(null);
@@ -1287,7 +1272,7 @@ export function DashboardSections({
                 )
               ? "recipient allowlist"
               : "";
-    setNotice(
+    toast.info(
       rule
         ? `Demo policy preview: this request would be held by the ${rule}. Gas availability and chain state cannot be verified here; no transaction was sent.`
         : "Demo policy preview: this request matches the displayed policy, but no transaction was signed or sent.",
@@ -1298,10 +1283,10 @@ export function DashboardSections({
     try {
       await navigator.clipboard.writeText(wallet.address);
       setCopied(true);
-      setNotice("Wallet address copied. This sample address is not a verified smart account.");
+      toast.success("Wallet address copied. This sample address is not a verified smart account.");
     } catch {
       setCopied(false);
-      setNotice("Could not copy the address. Select and copy it manually.");
+      toast.error("Could not copy the address. Select and copy it manually.");
     }
   }
 
@@ -1309,23 +1294,17 @@ export function DashboardSections({
     <main className="dashboard-sections">
       <header className="ds-top">
         <div>
-          <p className="ds-eyebrow">AEGIS / CONTROL ROOM</p>
           <h1>
             {pageTitle}
-            <span aria-hidden="true">.</span>
           </h1>
         </div>
         <div className="ds-top-right">
-          {pill(mock ? "DEMO DATA" : "API CONNECTED", mock ? "wait" : "good")}
+          {mock
+            ? pill("Demo data", "wait", "Actions here change mock data only. No funds move.")
+            : pill("API data", "good")}
           {actionButton("Refresh", onRefresh)}
         </div>
       </header>
-      {modeNotice}
-      {notice && (
-        <p className="ds-notice" role="status">
-          {notice}
-        </p>
-      )}
       <div className="ds-content">{content}</div>
 
       <EventDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} />
@@ -1339,7 +1318,7 @@ export function DashboardSections({
           <div className="ds-modal-head">
             <div>
               <p className="ds-eyebrow">
-                {preview === "send" || preview === "receive" ? "TRANSFER PREVIEW" : "SETUP WIZARD"}
+                {preview === "send" || preview === "receive" ? "Transfer preview" : "Setup wizard"}
               </p>
               <h2 id="ds-modal-title">
                 {
@@ -1368,7 +1347,7 @@ export function DashboardSections({
                 assign a key, or write settings.
               </p>
               <div className="ds-preview-callout">
-                {mock ? "DEMO ONLY · " : "UNAVAILABLE · "}The SDK/API required to provision{" "}
+                {mock ? "Demo only · " : "Unavailable · "}The SDK/API required to provision{" "}
                 {preview === "wallet" ? "a wallet" : "an agent"} is absent.{" "}
                 {mock
                   ? "Nothing will be saved or sent."
@@ -1519,7 +1498,7 @@ export function DashboardSections({
                   Gas need and current chain balance cannot be verified from this frontend.
                 </p>
                 <div className="ds-preview-callout">
-                  {mock ? "DEMO PREVIEW · " : "NOT CONNECTED · "}No wallet SDK or transfer API is
+                  {mock ? "Demo preview · " : "Not connected · "}No wallet SDK or transfer API is
                   present. No funds will move.
                 </div>
                 <div className="ds-actions">
@@ -1579,7 +1558,7 @@ export function DashboardSections({
         <section className="ds-modal">
           <div className="ds-modal-head">
             <div>
-              <p className="ds-eyebrow">IRREVERSIBLE CONTROL</p>
+              <p className="ds-eyebrow">Irreversible control</p>
               <h2 id="ds-revoke-title">Revoke session key?</h2>
             </div>
             <button
@@ -1598,7 +1577,7 @@ export function DashboardSections({
           </p>
           <div className="ds-preview-callout">
             {mock
-              ? "DEMO ONLY · No on-chain transaction will be sent."
+              ? "Demo only · No on-chain transaction will be sent."
               : "Unavailable · Browser-wallet signing is not connected."}
           </div>
           <div className="ds-actions">

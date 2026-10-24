@@ -1,5 +1,11 @@
 export type Decision = "executed" | "blocked" | "pending" | "approved" | "denied";
 export type Environment = "local" | "testnet" | "sim";
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+  name?: string;
+}
 export type Rule = "per_tx_limit" | "daily_limit" | "recipient" | "contract" | "expiry" | "revoked";
 
 export interface AegisEvent {

@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChartFrame } from "../components/ChartFrame";
 
 type Strictness = "lenient" | "balanced" | "strict";
@@ -116,13 +116,13 @@ function seededRandom(seed: number) {
   };
 }
 
-function simulate(strictness: Strictness): Simulation {
+function simulate(seed: number, strictness: Strictness): Simulation {
   const policy = STRICTNESS.find((option) => option.id === strictness)!;
   const balances = Object.fromEntries(PROFILES.map((profile) => [profile.id, profile.reserve]));
   const blocked = Object.fromEntries(RULES.map((rule) => [rule.id, 0])) as Record<Rule, number>;
   const active = new Set(PROFILES.map((profile) => profile.id));
   const random = new Map(
-    PROFILES.map((profile, index) => [profile.id, seededRandom(SEED + index * 104729)] as const),
+    PROFILES.map((profile, index) => [profile.id, seededRandom(seed + index * 104729)] as const),
   );
   const deaths = new Map<string, { day: number; cause: Cause }>();
   const history: Snapshot[] = [{ day: 0, balances: { ...balances }, blocked: { ...blocked } }];
@@ -196,11 +196,47 @@ function DirectEndLabel({
 }
 
 export function ArenaRoute() {
-  const [strictness, setStrictness] = useState<Strictness>("balanced");
-  const [speedIndex, setSpeedIndex] = useState(1);
-  const [simulation, setSimulation] = useState(() => simulate("balanced"));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const readSeedParam = () => {
+    const raw = searchParams.get("seed") ?? "";
+    const parsed = /^[1-9]\d*$/.test(raw) ? Number(raw) : NaN;
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : SEED;
+  };
+  const readStrictnessParam = (): Strictness => {
+    const raw = searchParams.get("strictness");
+    return STRICTNESS.some((option) => option.id === raw) ? (raw as Strictness) : "balanced";
+  };
+  const readSpeedParam = () => {
+    const raw = searchParams.get("speed") ?? "";
+    const parsed = /^(0|[1-9]\d*)$/.test(raw) ? Number(raw) : NaN;
+    return Number.isInteger(parsed) && parsed >= 0 && parsed < SPEEDS.length ? parsed : 1;
+  };
+  const seed = readSeedParam();
+  const strictness = readStrictnessParam();
+  const speedIndex = readSpeedParam();
+  const [simulation, setSimulation] = useState(() => simulate(seed, strictness));
   const [day, setDay] = useState(0);
   const [running, setRunning] = useState(false);
+
+  function updateQuery(patch: Record<string, string>) {
+    const nextParams = new URLSearchParams(searchParams);
+    const config = {
+      seed: String(seed),
+      speed: String(speedIndex),
+      strictness,
+      ...patch,
+    };
+    for (const [key, value] of Object.entries(config)) {
+      nextParams.set(key, value);
+    }
+    setSearchParams(nextParams);
+  }
+
+  useEffect(() => {
+    setSimulation(simulate(seed, strictness));
+    setDay(0);
+    setRunning(false);
+  }, [seed, speedIndex, strictness]);
 
   useEffect(() => {
     if (!running) return;
@@ -234,27 +270,30 @@ export function ArenaRoute() {
     count: visibleAgents.filter((agent) => agent.isDead && agent.cause === cause).length,
   }));
   const strictnessData = STRICTNESS.map((option) => {
-    const compared = simulate(option.id);
+    const compared = simulate(seed, option.id);
     const average =
       compared.agents.reduce((sum, agent) => sum + agent.daysSurvived, 0) / compared.agents.length;
     return { label: option.label, days: Number(average.toFixed(1)) };
   });
 
   function reset(nextStrictness = strictness) {
-    setSimulation(simulate(nextStrictness));
+    setSimulation(simulate(seed, nextStrictness));
     setDay(0);
     setRunning(false);
   }
 
   function replay() {
-    setSimulation(simulate(strictness));
+    setSimulation(simulate(seed, strictness));
     setDay(0);
     setRunning(true);
   }
 
   function selectStrictness(nextStrictness: Strictness) {
-    setStrictness(nextStrictness);
-    reset(nextStrictness);
+    updateQuery({ strictness: nextStrictness });
+  }
+
+  function selectSpeed(nextSpeed: number) {
+    updateQuery({ speed: String(nextSpeed) });
   }
 
   return (
@@ -269,7 +308,7 @@ export function ArenaRoute() {
           Simulated only. No funds or external services are involved.
         </p>
         <p className="arena-seed">
-          Seed {SEED} <span aria-hidden="true">/</span> replay produces the exact same run
+          Seed {seed} <span aria-hidden="true">/</span> replay produces the exact same run
         </p>
       </header>
 
@@ -292,10 +331,7 @@ export function ArenaRoute() {
         </button>
         <label>
           Speed
-          <select
-            onChange={(event) => setSpeedIndex(Number(event.target.value))}
-            value={speedIndex}
-          >
+          <select onChange={(event) => selectSpeed(Number(event.target.value))} value={speedIndex}>
             {SPEEDS.map((speed, index) => (
               <option key={speed.label} value={index}>
                 {speed.label}

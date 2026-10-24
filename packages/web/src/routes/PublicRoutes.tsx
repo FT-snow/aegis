@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { login } from "../lib/api";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useToast } from "../components/ToastProvider";
+import { useAuth } from "../lib/auth";
+import { safeNextPath } from "./RequireAuth";
 
 type AuthMode = "login" | "signup";
 
@@ -13,8 +15,8 @@ export function LandingPage() {
           AEGIS
         </Link>
         <nav className="public-nav" aria-label="Main navigation">
-          <Link to="/app/overview">Open the dashboard</Link>
-          <Link to="/arena">Watch the Survival Arena</Link>
+          <Link to="/app/overview">Dashboard</Link>
+          <Link to="/arena">Arena</Link>
           <Link className="public-nav-action" to="/login">
             Sign in
           </Link>
@@ -23,25 +25,22 @@ export function LandingPage() {
 
       <section className="landing-hero" aria-labelledby="landing-title">
         <span aria-hidden="true" className="hero-rule" />
-        <p className="eyebrow">A spending boundary for autonomous agents</p>
-        <h1 id="landing-title">Give your agent a budget it can&apos;t break.</h1>
+        <h1 id="landing-title">Give your agent a budget it can't break.</h1>
         <p className="landing-intro">
-          Let agents act on your behalf while owner-defined rules decide what can move and what must
-          wait.
+          Owner-defined rules decide what an agent can spend and what must wait.
         </p>
         <div className="landing-actions">
-          <Link className="button button-primary" to="/app/overview">
-            Open the dashboard
+          <Link className="button button-primary" to="/login">
+            Create an account
           </Link>
-          <Link className="button button-secondary" to="/arena">
-            Watch the Survival Arena
+          <Link className="button button-secondary" to="#policy-title">
+            See how it works
           </Link>
         </div>
       </section>
 
       <section className="policy-preview" aria-labelledby="policy-title">
         <div className="section-heading">
-          <p className="eyebrow">Three checks before execution</p>
           <h2 id="policy-title">How a request is checked</h2>
         </div>
         <ul className="policy-outcomes">
@@ -60,29 +59,19 @@ export function LandingPage() {
         </ul>
       </section>
 
-      <section className="prd-pitch" aria-labelledby="prd-title">
-        <p className="eyebrow">The Aegis premise</p>
-        <h2 id="prd-title">
-          AgentKit gives agents wallets. Aegis makes those wallets safe: policy enforced on-chain,
-          with a human in the loop or without one.
-        </h2>
-        <p className="product-disclaimer">
-          Product premise only. This frontend demo does not execute or verify blockchain
-          transactions.
-        </p>
-      </section>
-
       <footer className="public-footer">
         <span>AEGIS</span>
-        <span>Permissionless action. Enforced limits.</span>
       </footer>
     </main>
   );
 }
 
-export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
+export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const auth = useAuth();
+  const toast = useToast();
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -90,9 +79,32 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [authError, setAuthError] = useState("");
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const lastExpiredNotice = useRef("");
+  const nextParam = searchParams.get("next");
+  const locationFrom =
+    (location.state as { from?: string } | null | undefined)?.from ?? null;
+  const safeRedirect = safeNextPath(nextParam || locationFrom);
+  const redirectTarget =
+    safeRedirect === "/app" || safeRedirect.startsWith("/app/") ? safeRedirect : "/app";
+
+  // Opening /login while already authenticated goes straight to the app.
+  useEffect(() => {
+    if (auth.status === "authenticated") {
+      navigate(redirectTarget, { replace: true });
+    }
+  }, [auth.status, navigate, redirectTarget]);
+
+  // A session that expired elsewhere surfaces here as a notice.
+  useEffect(() => {
+    if (!auth.expired) {
+      lastExpiredNotice.current = "";
+    } else if (auth.expired !== lastExpiredNotice.current) {
+      lastExpiredNotice.current = auth.expired;
+      toast.error(auth.expired);
+    }
+  }, [auth.expired, toast]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,7 +119,6 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
 
     setEmailError(nextEmailError);
     setPasswordError(nextPasswordError);
-    setAuthError("");
     if (nextEmailError || nextPasswordError) {
       if (nextEmailError) emailRef.current?.focus();
       else passwordRef.current?.focus();
@@ -116,12 +127,11 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
 
     setIsSubmitting(true);
     try {
-      await login(normalizedEmail, password, mode);
-      onAuthenticated();
-      const from = (location.state as { from?: string } | null)?.from;
-      navigate(from ?? "/app/overview", { replace: true });
+      if (mode === "login") await auth.login(normalizedEmail, password);
+      else await auth.signup(normalizedEmail, password);
+      navigate(redirectTarget, { replace: true });
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Unable to sign in. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Unable to sign in. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -131,7 +141,14 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
     setMode(nextMode);
     setEmailError("");
     setPasswordError("");
-    setAuthError("");
+  }
+
+  if (auth.status === "loading") {
+    return (
+      <div aria-busy="true" aria-live="polite" className="loading-state" role="status">
+        <p className="eyebrow">Checking your session...</p>
+      </div>
+    );
   }
 
   return (
@@ -168,7 +185,6 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
               onChange={(event) => {
                 setEmail(event.target.value);
                 setEmailError("");
-                setAuthError("");
               }}
               type="email"
               value={email}
@@ -193,7 +209,6 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
                 onChange={(event) => {
                   setPassword(event.target.value);
                   setPasswordError("");
-                  setAuthError("");
                 }}
                 type={showPassword ? "text" : "password"}
                 value={password}
@@ -216,9 +231,6 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
             </p>
           </div>
 
-          <p className="auth-message" aria-live="polite" role="status">
-            {authError}
-          </p>
           <button
             className="button button-primary auth-submit"
             disabled={isSubmitting}

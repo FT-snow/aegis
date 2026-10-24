@@ -2,26 +2,28 @@ import { useCallback, useEffect, useState } from "react";
 import {
   BrowserRouter,
   Link,
-  Navigate,
-  NavLink,
   Route,
   Routes,
   useLocation,
+  useNavigate,
   useParams,
 } from "react-router-dom";
 import { ConnectionIndicator } from "./components/ConnectionIndicator";
+import { DashboardNav } from "./components/DashboardNav";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { ToastProvider, useToast } from "./components/ToastProvider";
+import { AuthProvider, useAuth } from "./lib/auth";
 import { ArenaRoute } from "./routes/ArenaRoute";
 import { DashboardSections } from "./routes/DashboardSections";
 import { LandingPage, LoginPage } from "./routes/PublicRoutes";
+import { RequireAuth } from "./routes/RequireAuth";
 import {
   getAgents,
   getAuditTrail,
   getEvents,
   getPending,
   getPolicy,
-  getSession,
   getWallet,
-  isMockMode,
   revokeKey,
   setAgentPaused,
   subscribe,
@@ -85,6 +87,9 @@ function eventKey(event: AegisEvent) {
 
 function DashboardPage() {
   const { section = "overview" } = useParams();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const toast = useToast();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -93,7 +98,6 @@ function DashboardPage() {
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const [ownerAddress, setOwnerAddress] = useState("");
   const [ownerChainId, setOwnerChainId] = useState<number | null>(null);
-  const [walletError, setWalletError] = useState("");
 
   const refresh = useCallback(() => setRefreshVersion((version) => version + 1), []);
 
@@ -106,12 +110,14 @@ function DashboardPage() {
         if (!cancelled) setData({ wallet, policy, pending, events, audit, agents });
       })
       .catch((loadError: unknown) => {
-        if (!cancelled)
+        if (!cancelled) {
+          toast.error(loadError instanceof Error ? loadError.message : "Dashboard data could not be loaded.");
           setError(
             loadError instanceof Error
               ? loadError.message
               : "Dashboard data could not be loaded. Try again.",
           );
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -119,7 +125,7 @@ function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshVersion]);
+  }, [refreshVersion, toast]);
 
   useEffect(
     () =>
@@ -151,11 +157,7 @@ function DashboardPage() {
     const chainChanged = (value: unknown) => {
       const chainId = typeof value === "string" ? Number.parseInt(value, 16) : Number.NaN;
       setOwnerChainId(chainId);
-      setWalletError(
-        chainId === 84532
-          ? ""
-          : `Connected wallet changed to unsupported chain ${chainId}. Switch to Base Sepolia (84532).`,
-      );
+      if (chainId !== 84532) toast.error("Wrong network. Switch to Base Sepolia (84532).");
     };
     const accountsChanged = (value: unknown) => {
       setOwnerAddress(Array.isArray(value) && typeof value[0] === "string" ? value[0] : "");
@@ -166,7 +168,7 @@ function DashboardPage() {
       provider.removeListener?.("chainChanged", chainChanged);
       provider.removeListener?.("accountsChanged", accountsChanged);
     };
-  }, []);
+  }, [toast]);
 
   const setPaused = useCallback(
     async (paused: boolean) => {
@@ -181,10 +183,19 @@ function DashboardPage() {
     refresh();
   }, [refresh]);
 
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch (logoutError) {
+      toast.error(logoutError instanceof Error ? logoutError.message : "Could not log out. Try again.");
+    } finally {
+      navigate("/login");
+    }
+  }
+
   async function connectOwnerWallet() {
-    setWalletError("");
     if (!window.ethereum) {
-      setWalletError("No browser wallet was detected. Install or unlock a wallet, then try again.");
+      toast.error("No wallet found. Install or unlock one, then try again.");
       return;
     }
     try {
@@ -198,9 +209,9 @@ function DashboardPage() {
       setOwnerAddress(accounts[0] ?? "");
       setOwnerChainId(chainId);
       if (chainId !== 84532)
-        setWalletError(`Connected wallet is on chain ${chainId}. Switch to Base Sepolia (84532).`);
+        toast.error("Wrong network. Switch to Base Sepolia (84532), then try again.");
     } catch (connectError) {
-      setWalletError(
+      toast.error(
         connectError instanceof Error
           ? connectError.message
           : "Wallet connection was cancelled. Unlock the wallet and try again.",
@@ -220,40 +231,43 @@ function DashboardPage() {
           AEGIS<span className="brand-period">.</span>
         </Link>
         <div className="topbar-status">
-          <span className={`network-indicator ${isMockMode ? "network-demo" : "network-live"}`}>
+          <span className="network-indicator">
             <span aria-hidden="true" className="status-symbol">
               ◆
             </span>
-            {isMockMode ? "Base Sepolia · demo target" : "Base Sepolia (testnet)"}
+            Base Sepolia
           </span>
-          <ConnectionIndicator
-            label={isMockMode && connection === "live" ? "Live · demo stream" : undefined}
-            state={connection}
-          />
-          <span className="owner-indicator">
+          <ConnectionIndicator state={connection} />
+          <span className="owner-indicator" title={user?.email}>
             {ownerAddress
               ? `Owner · ${ownerAddress.slice(0, 6)}…${ownerAddress.slice(-4)}`
               : "Owner wallet · not connected"}
           </span>
+          <ThemeToggle />
           {!ownerAddress && (
             <button
-              className="button button-secondary connect-owner-button"
+              className="button button-secondary button-sm connect-owner-button"
               onClick={() => void connectOwnerWallet()}
               type="button"
             >
               Connect owner wallet
             </button>
           )}
+          <button
+            className="button button-secondary button-sm"
+            onClick={() => void handleLogout()}
+            title={user?.email ? `Log out (${user.email})` : "Log out"}
+            type="button"
+          >
+            Log out
+          </button>
         </div>
       </header>
 
-      {(chainMismatch || walletError) && (
+      {chainMismatch && (
         <div className="blocking-alert" role="alert">
-          <strong>
-            {chainMismatch ? "Unsupported network." : "Wallet connection unavailable."}
-          </strong>{" "}
-          {walletError ||
-            `The API reported chain ID ${reportedChainId}; switch to Base Sepolia (84532). Wallet actions are blocked.`}
+          <strong>Unsupported network.</strong>{" "}
+          {`Chain ID ${ownerChainId ?? reportedChainId} is not Base Sepolia (84532). Wallet actions are blocked.`}
         </div>
       )}
 
@@ -357,10 +371,8 @@ function NotFoundPage() {
   );
 }
 
-function ProtectedApp({ authenticated }: { authenticated: boolean | null }) {
+function ProtectedApp() {
   const location = useLocation();
-  if (authenticated === null) return <DashboardSkeleton />;
-  if (!authenticated) return <Navigate replace state={{ from: location.pathname }} to="/login" />;
   const section = location.pathname.split("/")[2] ?? "overview";
   if (!navigation.some((item) => item.path === section)) return <NotFoundPage />;
   return (
@@ -372,27 +384,18 @@ function ProtectedApp({ authenticated }: { authenticated: boolean | null }) {
 }
 
 function AppRoutes() {
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getSession()
-      .then((active) => {
-        if (!cancelled) setAuthenticated(active);
-      })
-      .catch(() => {
-        if (!cancelled) setAuthenticated(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <Routes>
       <Route element={<LandingPage />} path="/" />
-      <Route element={<LoginPage onAuthenticated={() => setAuthenticated(true)} />} path="/login" />
-      <Route element={<ProtectedApp authenticated={authenticated} />} path="/app/*" />
+      <Route element={<LoginPage />} path="/login" />
+      <Route
+        element={
+          <RequireAuth>
+            <ProtectedApp />
+          </RequireAuth>
+        }
+        path="/app/*"
+      />
       <Route element={<ArenaRoute />} path="/arena" />
       <Route element={<NotFoundPage />} path="*" />
     </Routes>
@@ -402,7 +405,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }

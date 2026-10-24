@@ -3,6 +3,7 @@ import type {
   AgentSummary,
   ApprovalAction,
   AuditDecision,
+  AuthUser,
   ConnectionState,
   PendingRequest,
   Policy,
@@ -139,7 +140,6 @@ let mockPending: PendingRequest[] = [
 let mockEventsState = [...mockEvents];
 let mockKeyStatus: WalletSummary["keyStatus"] = "active";
 let mockPaused = false;
-let mockAuthenticated = false;
 let mockConnection: ConnectionState = "live";
 const mockListeners = new Set<(event: AegisEvent) => void>();
 const mockConnectionListeners = new Set<(state: ConnectionState) => void>();
@@ -170,10 +170,58 @@ const mockAgents: AgentSummary[] = [
 
 export const isMockMode = useMock;
 
-export async function getSession(): Promise<boolean> {
-  if (useMock) return mockAuthenticated;
-  const session = await request<{ authenticated: boolean }>("/auth/session");
-  return session.authenticated;
+export const MOCK_SESSION_KEY = "aegis_mock_session";
+export const SESSION_LOST_MESSAGE = "Your session ended. Log in again.";
+
+const MOCK_USER: AuthUser = {
+  id: "mock-owner",
+  email: "owner@aegis.test",
+  name: "Demo owner",
+};
+
+function readMockSession(): AuthUser | null {
+  try {
+    return window.localStorage.getItem(MOCK_SESSION_KEY) === "1" ? { ...MOCK_USER } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMockSession(active: boolean): void {
+  try {
+    if (active) window.localStorage.setItem(MOCK_SESSION_KEY, "1");
+    else window.localStorage.removeItem(MOCK_SESSION_KEY);
+  } catch {
+    // Storage unavailable (private mode, blocked): mock session lives in page memory.
+  }
+}
+
+const authLossListeners = new Set<(message: string) => void>();
+
+export function onAuthLoss(listener: (message: string) => void): () => void {
+  authLossListeners.add(listener);
+  return () => authLossListeners.delete(listener);
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+export async function getSession(): Promise<AuthUser | null> {
+  if (useMock) return readMockSession();
+  try {
+    const session = await request<{ user: AuthUser }>("/auth/me");
+    return session.user ?? null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null;
+    throw error;
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -184,7 +232,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(detail?.message ?? `Request failed (${response.status}). Try again.`);
+    if (response.status === 401) {
+      authLossListeners.forEach((listener) => listener(detail?.message ?? SESSION_LOST_MESSAGE));
+      throw new ApiError(401, detail?.message ?? SESSION_LOST_MESSAGE);
+    }
+    throw new ApiError(
+      response.status,
+      detail?.message ?? `Request failed (${response.status}). Try again.`,
+    );
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -194,16 +249,28 @@ export async function login(
   email: string,
   password: string,
   mode: "login" | "signup",
-): Promise<void> {
+): Promise<AuthUser> {
   if (useMock) {
     await new Promise((resolve) => window.setTimeout(resolve, 180));
-    mockAuthenticated = true;
-    return;
+    writeMockSession(true);
+    return { ...MOCK_USER, email: email.trim() };
   }
   await request(mode === "signup" ? "/auth/signup" : "/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  const user = await getSession();
+  if (!user) throw new Error("Login succeeded but the session could not be confirmed. Try again.");
+  return user;
+}
+
+export async function logout(): Promise<void> {
+  if (useMock) {
+    writeMockSession(false);
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    return;
+  }
+  await request("/auth/logout", { method: "POST" });
 }
 
 export async function getWallet(): Promise<WalletSummary> {
@@ -353,8 +420,10 @@ export function isAgentPaused(): boolean {
   return mockPaused;
 }
 
-export async function getEvents(): Promise<AegisEvent[]> {
-  return useMock ? [...mockEventsState] : request<AegisEvent[]>("/events");
+export async function getEvents(options?: { since?: string }): Promise<AegisEvent[]> {
+  if (useMock) return [...mockEventsState];
+  const suffix = options?.since ? `?since=${encodeURIComponent(options.since)}` : "";
+  return request<AegisEvent[]>(`/events${suffix}`);
 }
 
 export async function getAuditTrail(): Promise<AuditDecision[]> {
@@ -395,7 +464,15 @@ export function subscribe(
   let socket: WebSocket | undefined;
   let retryTimer = 0;
   let attempts = 0;
+  let lastSeenTimestamp: string | undefined;
+  let backfilled = false;
+  let buffered: AegisEvent[] = [];
   const setConnection = (state: ConnectionState) => onConnection?.(state);
+  const deliver = (event: AegisEvent) => {
+    if (!lastSeenTimestamp || event.timestamp > lastSeenTimestamp)
+      lastSeenTimestamp = event.timestamp;
+    onEvent(event);
+  };
   const connect = () => {
     if (!active) return;
     setConnection("reconnecting");
@@ -403,14 +480,28 @@ export function subscribe(
     socket = new WebSocket(`${protocol}//${window.location.host}/api/live`);
     socket.onopen = () => {
       attempts = 0;
-      setConnection("live");
-      void getEvents()
-        .then((events) => events.forEach(onEvent))
-        .catch(() => setConnection("reconnecting"));
+      // Backfill anything missed while disconnected before switching the
+      // feed to live messages.
+      void getEvents({ since: lastSeenTimestamp })
+        .then((events) => {
+          backfilled = true;
+          events.forEach(deliver);
+          buffered.forEach(deliver);
+          buffered = [];
+          setConnection("live");
+        })
+        .catch(() => {
+          backfilled = true;
+          buffered.forEach(deliver);
+          buffered = [];
+          setConnection("live");
+        });
     };
     socket.onmessage = (message) => {
       try {
-        onEvent(JSON.parse(String(message.data)) as AegisEvent);
+        const event = JSON.parse(String(message.data)) as AegisEvent;
+        if (!backfilled) buffered.push(event);
+        else deliver(event);
       } catch {
         setConnection("reconnecting");
       }
