@@ -1,0 +1,37 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "aegis-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-12-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ENV": "local",
+    "LAB_ENABLED": "true",
+    "OPENROUTER_MODEL": "openai/gpt-oss-20b",
+    "ALLOWED_CHAIN_IDS": "84532,31337",
+    "ARE_LOW_MAX": "29",
+    "ARE_MODERATE_MAX": "59",
+    "ARE_HIGH_MAX": "79",
+    "USDC_ADDRESS": "0x036CbD53842c5426634e7929541eC2318f3dCF7c",
+    "ENTRY_POINT_ADDRESS": "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "PASSPORT_LEDGER", "class_name": "PassportLedger" },
+      { "name": "SIM_RUNS", "class_name": "SimulationRunStore" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
+      { "name": "WALLET_ROOMS", "class_name": "WalletRoom" }
+    ]
+  },
+  "r2_buckets": [
+    { "binding": "SIM_ARCHIVE", "bucket_name": "aegis-sim-archives" }
+  ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PassportLedger", "SimulationRunStore", "RateLimiter"] },
+    { "tag": "v2", "new_sqlite_classes": ["WalletRoom"] }
+  ]
+}

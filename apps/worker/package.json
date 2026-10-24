@@ -1,0 +1,21 @@
+{
+  "name": "@aegis/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "deploy:dry": "wrangler deploy --config wrangler.jsonc --dry-run"
+  },
+  "dependencies": {
+    "@aegis/kit": "file:../../packages/kit",
+    "@libsql/client": "0.18.0",
+    "@x402/core": "2.28.0",
+    "@x402/evm": "2.28.0",
+    "@x402/hono": "2.28.0",
+    "hono": "4.13.13",
+    "permissionless": "0.5.2",
+    "viem": "2.57.11"
+  }
+}
