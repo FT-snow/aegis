@@ -8,7 +8,8 @@ Aegis is a policy-enforcing wallet prototype for AI agents. Its differentiator i
 - `packages/sim-core`: seeded, deterministic policy simulation.
 - `apps/worker`: Hono API for auth, wallet enrollment, transfer preparation, agent registration, gateway preflight, approvals, passports, and simulation.
 - `contracts`: ERC-4337 v0.7 smart account and deterministic factory.
-- `apps/dashboard`: temporary, basic API exercise UI; intended to be replaced by the product frontend.
+- `apps/dashboard`: current React + TypeScript product dashboard. Use this directory for the Cloudflare Pages deployment.
+- `packages/web`: separate frontend package; it is not the current Cloudflare Pages dashboard target.
 
 ## Quick checks
 
@@ -18,6 +19,8 @@ Requirements: Node.js 20+, npm 10+, and Foundry for Solidity tests.
 npm install
 npm run check                 # TypeScript, package tests, optimized viaIR Solidity compile
 npm run worker:dry-run        # Cloudflare Worker bundle/config validation
+npm run dashboard:build       # Dashboard TypeScript check and production bundle
+npm run worker:production:dry-run # Validate production Worker deployment config
 npm run demo                  # Local deterministic passport demonstration
 ```
 
@@ -29,7 +32,7 @@ cp .env.example apps/worker/.dev.vars
 npm run dev
 ```
 
-The dashboard is a temporary developer harness, not a production client or part of the root workspaces. Install it separately only if needed: see `apps/dashboard/README.md`.
+For Cloudflare Pages and Worker deployment settings, environment templates, and known deployment caveats, see [`apps/dashboard/README.md`](apps/dashboard/README.md) and [`deployment/cloudflare/`](deployment/cloudflare/).
 
 ## Trust and chain limits
 

@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck:functions": "tsc --noEmit -p tsconfig.functions.json",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@lucasmarkes/hairline": "^0.5.1",
+    "framer-motion": "^14.6.0",
+    "gsap": "^3.15.0",
+    "lucide-react": "^1.61.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

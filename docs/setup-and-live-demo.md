@@ -35,7 +35,7 @@ Copy `.env.example` to `apps/worker/.dev.vars`. Keep real credentials out of sou
 - `APP_ENV=local` and `ALLOWED_CHAIN_IDS=84532,31337` for local development. Use only `84532` for testnet.
 - `RPC_URL` for the one selected chain, `AEGIS_FACTORY_ADDRESS`, and `ENTRY_POINT_ADDRESS` (EntryPoint v0.7).
 - `USDC_ADDRESS`: the official Base Sepolia USDC address for chain `84532`; use a deployed local mock and allow only `31337` for local tests.
-- `BUNDLER_URL` only when testing the owner-signed UserOperation relay. The gateway itself remains advisory and does not submit agent UserOperations.
+- `BUNDLER_URL` for relaying signed UserOperations. Gateway intent preflight checks policy and returns a prepared call; `/api/gateway/intent/submit` relays an agent-signed operation but never signs on the agent's behalf.
 - `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for persistent user, wallet, agent, policy, risk, and event records.
 - `AGENT_TOKEN_PEPPER` as a high-entropy secret of at least 32 characters. Only a keyed digest of an agent bearer credential is stored.
 - Optional OpenRouter and x402 variables only for those integrations.
@@ -52,7 +52,7 @@ For deployed simulation archives, create the R2 bucket named in `apps/worker/wra
 
 ## Enrollment and demo boundaries
 
-1. Start the Worker and temporary dashboard; register/sign in with a test account.
+1. Start the Worker and dashboard; register/sign in with a test account.
 2. Deploy the factory and account using the configured test chain. Wallet enrollment predicts the account from the factory/owner/salt and requires an owner-signed enrollment challenge. Undeployed counterfactual addresses can be enrolled; the owner relay can deploy them only with the exact enrolled factory and `createAccount(owner, salt)` factory data.
 3. Add a session key using an owner-signed on-chain call. Register an agent only after the Worker verifies the confirmed `KeyAdded` event and active on-chain key configuration.
 4. Send an authenticated agent intent to `/api/gateway/intent`. The returned decision, passport, and call are preflight artifacts. `allow` does not mean submitted or confirmed.

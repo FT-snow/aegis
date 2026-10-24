@@ -14,6 +14,8 @@
     "dashboard:dev": "npm --prefix apps/dashboard run dev",
     "dashboard:build": "npm --prefix apps/dashboard run build",
     "worker:dry-run": "wrangler deploy --config apps/worker/wrangler.jsonc --dry-run",
+    "worker:production:dry-run": "wrangler deploy --config apps/worker/wrangler.production.jsonc --dry-run",
+    "worker:deploy": "wrangler deploy --config apps/worker/wrangler.production.jsonc",
     "demo": "tsx apps/worker/scripts/demo.ts",
     "contracts:compile": "node contracts/scripts/compile.mjs",
     "contracts:test": "forge test --root contracts"
